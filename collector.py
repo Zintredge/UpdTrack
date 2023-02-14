@@ -9,6 +9,8 @@ Insert the hostname, package name, and current date and time into the packages t
 If the hostname already exists in the hostnames table, don't insert it.
 If the combination of hostname and package name already exist in the packages table, don't insert it.
 If the hostname and package name don't exist in the list of packages, delete them from the packages table.
+Install this script as a service to run every 15 minutes.
+Run the service as root.
 """
 
 import os
@@ -101,72 +103,3 @@ conn.close()
 
 # Exit the script
 sys.exit()
-
-# Path: /etc/UpdTrack/db.pwd
-# This file contains the connection string for the MSSQL DB
-# The connection string is in the format:
-# DRIVER={ODBC Driver 17 for SQL Server};SERVER=server;DATABASE=database;UID=username;PWD=password
-# Replace the values in the curly braces with the appropriate values for your environment
-
-# Path: /etc/UpdTrack/collector.service
-# This file contains the service definition for the collector service
-# The service is used to run the collector.py script every 24 hours
-
-[Unit]
-Description=UpdTrack collector service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-ExecStart=/usr/bin/python3 /usr/local/bin/collector.py
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-
-# Path: /etc/UpdTrack/collector.timer
-# This file contains the timer definition for the collector service
-# The timer is used to run the collector service every 24 hours
-
-[Unit]
-Description=UpdTrack collector timer
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-
-# Path: /etc/UpdTrack/collector.sh
-# This file contains the shell script used to install the collector service and timer
-# The script is run by the UpdTrack installer
-
-# Create the UpdTrack directory
-mkdir /etc/UpdTrack
-
-# Copy the collector.py script to the UpdTrack directory
-cp collector.py /etc/UpdTrack
-
-# Copy the db.pwd file to the UpdTrack directory
-cp db.pwd /etc/UpdTrack
-
-# Copy the collector.service file to the systemd directory
-cp collector.service /etc/systemd/system
-
-# Copy the collector.timer file to the systemd directory
-cp collector.timer /etc/systemd/system
-
-# Enable the collector service
-systemctl enable collector.service
-
-# Enable the collector timer
-systemctl enable collector.timer
-
-# Start the collector service
-systemctl start collector.service
-
-# Start the collector timer
-systemctl start collector.timer
