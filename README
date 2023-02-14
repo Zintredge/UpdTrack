@@ -1,0 +1,33 @@
+This is a simple Python script that collects Linux Update information from a Linux system and stores it in a SQL Server database.
+
+Create the following files and directories:
+
+# Path: /etc/systemd/system/UpdTrack.service
+[Unit]
+Description=UpdTrack Service
+After=network.target
+Wants=updtrack.timer
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/collector.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+
+# Path: /etc/systemd/system/UpdTrack.timer
+[Unit]
+Description=UpdTrack Timer
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+# Path: /etc/UpdTrack/db.pwd
+DRIVER={ODBC Driver 17 for SQL Server};SERVER=server;DATABASE=database;UID=username;PWD=password
