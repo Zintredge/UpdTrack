@@ -31,30 +31,29 @@ now = datetime.datetime.now()
 # Get the current date and time in a format that MSSQL can use
 now = now.strftime("%Y-%m-%d %H:%M:%S")
 
-# Get the release version of Ubuntu
-release = subprocess.check_output(['lsb_release', '-r']).decode('utf-8').split()[1]
+# Get the release version of Ubuntu with the lsb_release -a command from the description field
+release = subprocess.check_output(['lsb_release', '-a']).decode('utf-8').splitlines()[2].split(':')[1].strip()
 
-# Get the output of the apt list command
-apt_list = subprocess.check_output(['apt', 'list', '--installed'])
+# Get the output of the "dpkg --list" command
+dpkg_list = subprocess.check_output(['dpkg', '--list'])
 
 # Convert the output to a string
-apt_list = apt_list.decode('utf-8')
+dpkg_list = dpkg_list.decode('utf-8')
 
 # Split the output into a list of lines
-apt_list = apt_list.splitlines()
+dpkg_list = dpkg_list.splitlines()
 
 # Create a list of packages
 installed_packages = []
 
-# Loop through the lines of the output
-for line in apt_list:
+# Loop through the list of lines
+for line in dpkg_list:
     # Split the line into a list of words
-    words = line.split()
+    line = line.split()
 
-    # If the line contains a package name and a version number
-    if len(words) == 2:
-        # Add the package name and version number to the list of packages
-        installed_packages.append(words[0] + ' ' + words[1])
+    # If the line is a package, add it to the list of packages
+    if len(line) > 3 and line[0] == 'ii':
+        installed_packages.append(line[1] + ' ' + line[2])
 
 # Get the connection string from the file /etc/UpdTrack/db.pwd
 with open('/etc/UpdTrack/db.pwd', 'r') as f:
@@ -88,17 +87,17 @@ cursor.execute('''
     )
 ''')
 
-# Insert the hostname into the hostnames table
+# Insert the hostname and release version into the hostnames table if it doesn't already exist
 cursor.execute('''
     IF NOT EXISTS (SELECT * FROM hostnames WHERE hostname = ?)
-    INSERT INTO hostnames (hostname) VALUES (?)
-''', hostname, hostname)
+    INSERT INTO hostnames (hostname, release) VALUES (?, ?)
+''', hostname, hostname, release)
 
-# Insert the release version of Ubuntu into the hostnames table
+#Update the release version of Ubuntu for the hostname if it is different
 cursor.execute('''
+    IF EXISTS (SELECT * FROM hostnames WHERE hostname = ? AND release <> ?)
     UPDATE hostnames SET release = ? WHERE hostname = ?
-''', release, hostname)
-
+''', hostname, release, release, hostname)
 
 # Insert every package in the installed_packages list into the packages table linking it to the hostname marking it as installed
 for package in installed_packages:
@@ -107,10 +106,14 @@ for package in installed_packages:
         INSERT INTO packages (hostname, package, date, installed) VALUES (?, ?, ?, ?)
     ''', hostname, package, hostname, package, now, 1)
 
-# Check if there are any packages in the packages table that are not in the installed_packages list and mark them as uninstalled updating the date
-cursor.execute('''
-    UPDATE packages SET date = ?, installed = ? WHERE hostname = ? AND package NOT IN (SELECT * FROM ?)
-''', now, 0, hostname, installed_packages)
+# Check if there are any packages in the packages table that are not in the list installed_packages and mark them as uninstalled updating the date
+cursor.execute('''SELECT package FROM packages WHERE hostname = ?''', hostname)
+packages = cursor.fetchall()
+for package in packages:
+    if package[0] not in installed_packages:
+        cursor.execute('''
+            UPDATE packages SET date = ?, installed = ? WHERE hostname = ? AND package = ?
+        ''', now, 0, hostname, package[0])
 
 # Commit the changes
 conn.commit()
