@@ -115,6 +115,13 @@ for package in packages:
             UPDATE packages SET date = ?, installed = ? WHERE hostname = ? AND package = ?
         ''', now, 0, hostname, package[0])
 
+# Get latest updated package from the packages table and print it including the date and time
+cursor.execute('''
+    SELECT TOP 1 package, date FROM packages WHERE hostname = ? AND installed = ? ORDER BY date DESC
+''', hostname, 1)
+package = cursor.fetchone()
+print(package[0] + ' ' + package[1].strftime("%Y-%m-%d %H:%M:%S"))
+
 # Commit the changes
 conn.commit()
 
