@@ -29,7 +29,7 @@ hostname = socket.gethostname()
 now = datetime.datetime.now()
 
 # Get the current date and time in a format that MSSQL can use
-now = now.strftime("%Y-%m-%d %H:%M:%S")
+#now = now.strftime("%Y-%m-%d %H:%M:%S")
 
 # Get the release version of Ubuntu with the lsb_release -a command from the description field
 release = subprocess.check_output(['lsb_release', '-a']).decode('utf-8').splitlines()[2].split(':')[1].strip()
@@ -114,13 +114,6 @@ for package in packages:
         cursor.execute('''
             UPDATE packages SET date = ?, installed = ? WHERE hostname = ? AND package = ?
         ''', now, 0, hostname, package[0])
-
-# Get latest updated package from the packages table and print it including the date and time
-cursor.execute('''
-    SELECT TOP 1 package, date FROM packages WHERE hostname = ? AND installed = ? ORDER BY date DESC
-''', hostname, 1)
-package = cursor.fetchone()
-print(package[0] + ' ' + package[1].strftime("%Y-%m-%d %H:%M:%S"))
 
 # Commit the changes
 conn.commit()
