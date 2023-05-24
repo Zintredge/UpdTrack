@@ -13,7 +13,7 @@ The module will be called from the ansible playbook as follows:
         ansible_module:
             hostname: "{{ inventory_hostname }}"
             release: "{{ ansible_distribution_release }}"
-            installed_packages: "{{ ansible_facts.packages }}"
+            installedpackages: "{{ ansible_facts.packages }}"
             now: "{{ ansible_date_time.iso8601 }}"
 
 The following is the MSSQL database schema:
@@ -39,8 +39,8 @@ The module will check if the hostname exists in the hostnames table
 If it doesn't exist, the module will insert the hostname and release version into the hostnames table
 If it does exist, the module will update the release version of Ubuntu for the hostname if it is different
 
-The module will insert every package in the installed_packages list into the packages table linking it to the hostname marking it as installed and updating the date
-The module will check if there are any packages in the packages table that are not in the list installed_packages and mark them as uninstalled updating the date
+The module will insert every package in the installedpackages list into the packages table linking it to the hostname marking it as installed and updating the date
+The module will check if there are any packages in the packages table that are not in the list installedpackages and mark them as uninstalled updating the date
 """
 
 #Import the required modules
@@ -53,7 +53,7 @@ def run_module():
     module_args = dict(
         hostname=dict(type='str', required=True),
         release=dict(type='str', required=True),
-        installed_packages=dict(type='list', required=True),
+        installedpackages=dict(type='list', required=True),
         now=dict(type='str', required=True)
     )
 
@@ -66,14 +66,14 @@ def run_module():
     # Get the parameters from the module
     hostname = module.params['hostname']
     release = module.params['release']
-    installed_packages = module.params['installed_packages']
+    installedpackages = module.params['installedpackages']
     now = module.params['now']
 
-    # Transform installed_packages from a list of dictionaries to a list of tuples
+    # Transform installedpackages from a list of dictionaries to a list of tuples
     # This is required because pyodbc doesn't support dictionaries
     # The first element of the tuple is the package name
     # The second element of the tuple is the package version
-    installed_packages = [(package['name'], package['version']) for package in installed_packages] 
+    installedpackages = [(package['name'], package['version']) for package in installedpackages] 
 
     # Get the connection string from the file /etc/UpdTrack/db.pwd
     with open('/etc/UpdTrack/db.pwd', 'r') as f:
@@ -124,7 +124,7 @@ def run_module():
     # This is a list of tuples
     # The first element of the tuple is the package name
     # The second element of the tuple is the package version
-    rows = installed_packages
+    rows = installedpackages
 
     # Create a list of packages from the list of tuples
     packages = []
@@ -134,7 +134,7 @@ def run_module():
     # Check if the package is in the list of packages
     # If it is, do nothing
     # If it isn't, insert it into the packages table and mark it as installed
-    for package in installed_packages:
+    for package in installedpackages:
         if package not in packages:
             cursor.execute('INSERT INTO packages (hostname, package, date, installed) VALUES (?, ?, ?, ?)', hostname, package, now, 1)
             conn.commit()
@@ -143,7 +143,7 @@ def run_module():
     # If there are, mark them as uninstalled
     # Update the date only if the package is not already marked as uninstalled
     for package in packages:
-        if package not in installed_packages:
+        if package not in installedpackages:
             cursor.execute('UPDATE packages SET installed=?, date=? WHERE hostname=? AND package=? AND installed=?', 0, now, hostname, package, 1)
             conn.commit()
 
@@ -155,7 +155,7 @@ def run_module():
         changed=True,
         hostname=hostname,
         release=release,
-        installed_packages=installed_packages,
+        installedpackages=installedpackages,
         now=now
     )
 
