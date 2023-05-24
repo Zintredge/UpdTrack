@@ -114,9 +114,11 @@ def run_module():
         cursor.execute('UPDATE hostnames SET release=? WHERE hostname=?', release, hostname)
         conn.commit()
 
-    # Get the list of packages from the packages table
-    cursor.execute('SELECT package FROM packages WHERE hostname=?', hostname)
-    rows = cursor.fetchall()
+    # Retrieve the list of packages from the modules parameters
+    # This is a list of tuples
+    # The first element of the tuple is the package name
+    # The second element of the tuple is the package version
+    rows = installed_packages
 
     # Create a list of packages from the list of tuples
     packages = []
