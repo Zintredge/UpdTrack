@@ -69,6 +69,12 @@ def run_module():
     installed_packages = module.params['installed_packages']
     now = module.params['now']
 
+    # Transform installed_packages from a list of dictionaries to a list of tuples
+    # This is required because pyodbc doesn't support dictionaries
+    # The first element of the tuple is the package name
+    # The second element of the tuple is the package version
+    installed_packages = [(package['name'], package['version']) for package in installed_packages] 
+
     # Get the connection string from the file /etc/UpdTrack/db.pwd
     with open('/etc/UpdTrack/db.pwd', 'r') as f:
         conn_str = f.read()
