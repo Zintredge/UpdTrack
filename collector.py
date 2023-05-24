@@ -1,18 +1,7 @@
 """
 Check release version of Ubuntu.
 Run apt list and parse the output to get a list of installed packages including the version number.
-Create a list of the packages including the version number and the hostname of the machine.
-Connect to the MSSQL DB. Get the connection string from the a file called /etc/UpdTrack/db.pwd.
-If the table hostnames doesn't exist, create it.
-If the table packages doesn't exist, create it.
-Insert the hostname into the hostnames table. Change the release version of Ubuntu for the hostname if it is different.
-Insert the release version of Ubuntu into the hostnames table.
-Insert the hostname, package name including version number and current date and time into the packages table. Mark the package as installed.
-If the hostname already exists in the hostnames table, don't insert it.
-If the combination of hostname and package name already exist in the packages table, don't insert it.
-If the hostname and package name including the package version don't exist in the list of packages, mark the package as uninstalled.
-Install this script as a service to run every 15 minutes.
-Run the service as root.
+Create a list of the packages including the version number and the hostname of the machine and save it to a file.
 """
 
 import os
@@ -55,68 +44,13 @@ for line in dpkg_list:
     if len(line) > 3 and line[0] == 'ii':
         installed_packages.append(line[1] + ' ' + line[2])
 
-# Get the connection string from the file /etc/UpdTrack/db.pwd
-with open('/etc/UpdTrack/db.pwd', 'r') as f:
-    conn_str = f.read()
+# Save the list of packages to a file named after the hostname
+with open('/var/UpdTrack/' + hostname, 'w') as f:
+    for package in installed_packages:
+        f.write(package + '\n')
 
-# Connect to the MSSQL DB
-conn = pyodbc.connect(conn_str)
-
-# Get a cursor
-cursor = conn.cursor()
-
-# If the table hostnames doesn't exist, create it use ID as the primary key
-cursor.execute('''
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='hostnames' AND xtype='U')
-    CREATE TABLE hostnames (
-        hostname VARCHAR(255) NOT NULL,
-        release VARCHAR(255) NOT NULL,
-        PRIMARY KEY (hostname)
-    )
-''')
-
-# If the table packages doesn't exist, create it
-cursor.execute('''
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='packages' AND xtype='U')
-    CREATE TABLE packages (
-        hostname VARCHAR(255) NOT NULL,
-        package VARCHAR(255) NOT NULL,
-        date DATETIME NOT NULL,
-        installed BIT NOT NULL,
-        PRIMARY KEY (hostname, package)
-    )
-''')
-
-# Insert the hostname and release version into the hostnames table if it doesn't already exist
-cursor.execute('''
-    IF NOT EXISTS (SELECT * FROM hostnames WHERE hostname = ?)
-    INSERT INTO hostnames (hostname, release) VALUES (?, ?)
-''', hostname, hostname, release)
-
-#Update the release version of Ubuntu for the hostname if it is different
-cursor.execute('''
-    IF EXISTS (SELECT * FROM hostnames WHERE hostname = ? AND release <> ?)
-    UPDATE hostnames SET release = ? WHERE hostname = ?
-''', hostname, release, release, hostname)
-
-# Insert every package in the installed_packages list into the packages table linking it to the hostname marking it as installed
-for package in installed_packages:
-    cursor.execute('''
-        IF NOT EXISTS (SELECT * FROM packages WHERE hostname = ? AND package = ?)
-        INSERT INTO packages (hostname, package, date, installed) VALUES (?, ?, ?, ?)
-    ''', hostname, package, hostname, package, now, 1)
-
-# Check if there are any packages in the packages table that are not in the list installed_packages and mark them as uninstalled updating the date
-cursor.execute('''SELECT package FROM packages WHERE hostname = ?''', hostname)
-packages = cursor.fetchall()
-for package in packages:
-    if package[0] not in installed_packages:
-        cursor.execute('''
-            UPDATE packages SET date = ?, installed = ? WHERE hostname = ? AND package = ?
-        ''', now, 0, hostname, package[0])
-
-# Commit the changes
-conn.commit()
-
-# Close the connection
-conn.close()
+# Wrtie the hostname, release version and date to the file mentioned above as the first three lines
+with open('/var/UpdTrack/' + hostname, 'r+') as f:
+    content = f.read()
+    f.seek(0, 0)
+    f.write(hostname + '\n' + release + '\n' + now.strftime("%Y-%m-%d %H:%M:%S") + '\n' + content)
